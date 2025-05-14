@@ -34,7 +34,7 @@ app.post('/check-login', async (req, res) => {
         currentBrowser = await puppeteer.launch({
             headless: false,
             defaultViewport: null,
-            args: ['--start-maximized']
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--start-maximized']
         });
 
         currentPage = await currentBrowser.newPage();
