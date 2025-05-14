@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook Report Automation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f2f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #1877f2;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            resize: vertical;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        button {
+            background-color: #1877f2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            flex: 1;
+        }
+        button:hover {
+            background-color: #166fe5;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        #status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #e7f3ff;
+            color: #1877f2;
+        }
+        .error {
+            background-color: #ffebee;
+            color: #d32f2f;
+        }
+        .cookie-format {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .user-info {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #e7f3ff;
+            border-radius: 4px;
+            display: none;
+        }
+        .browser-controls {
+            margin-top: 10px;
+            display: none;
+        }
+        .browser-controls button {
+            background-color: #dc3545;
+        }
+        .browser-controls button:hover {
+            background-color: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Facebook Report Automation</h1>
+        
+        <div class="form-group">
+            <label for="cookies">Facebook Cookies:</label>
+            <textarea id="cookies" placeholder="Dán chuỗi cookie từ Facebook vào đây..."></textarea>
+            <div class="cookie-format">Ví dụ: datr=xxx; sb=xxx; c_user=xxx; ...</div>
+        </div>
+
+        <div class="button-group">
+            <button onclick="checkLogin()" id="loginBtn">Kiểm tra đăng nhập</button>
+            <button onclick="convertAndStart()" id="reportBtn" disabled>Bắt đầu Report</button>
+        </div>
+
+        <div id="userInfo" class="user-info"></div>
+
+        <div id="browserControls" class="browser-controls">
+            <button onclick="closeBrowser()">Đóng tab Facebook</button>
+        </div>
+
+        <div class="form-group">
+            <label for="links">Danh sách link bài viết (mỗi link một dòng):</label>
+            <textarea id="links" placeholder="Điền link bài viết vào đây"></textarea>
+        </div>
+
+        <div id="status"></div>
+    </div>
+
+    <script>
+        let currentBrowser = null;
+
+        function convertCookieStringToJSON(cookieString) {
+            if (!cookieString || typeof cookieString !== 'string') {
+                throw new Error('Cookie không hợp lệ');
+            }
+
+            try {
+                const cookies = cookieString.split(';')
+                    .filter(cookie => cookie.trim())
+                    .map(cookie => {
+                        const [name, value] = cookie.trim().split('=');
+                        if (!name || !value) {
+                            throw new Error('Định dạng cookie không hợp lệ');
+                        }
+                        return {
+                            name: name.trim(),
+                            value: value.trim(),
+                            domain: '.facebook.com'
+                        };
+                    });
+
+                if (cookies.length === 0) {
+                    throw new Error('Không tìm thấy cookie hợp lệ');
+                }
+
+                return cookies;
+            } catch (error) {
+                throw new Error('Cookie không đúng định dạng: ' + error.message);
+            }
+        }
+
+        async function checkLogin() {
+            const statusDiv = document.getElementById('status');
+            const userInfoDiv = document.getElementById('userInfo');
+            const reportBtn = document.getElementById('reportBtn');
+            const loginBtn = document.getElementById('loginBtn');
+            const browserControls = document.getElementById('browserControls');
+
+            try {
+                const cookieString = document.getElementById('cookies').value;
+                if (!cookieString) {
+                    throw new Error('Vui lòng nhập cookie');
+                }
+
+                statusDiv.innerHTML = 'Đang kiểm tra đăng nhập...';
+                statusDiv.className = '';
+                loginBtn.disabled = true;
+
+                const cookies = convertCookieStringToJSON(cookieString);
+                
+                const response = await fetch('/check-login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ cookies }),
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    statusDiv.innerHTML = '✅ Đăng nhập thành công';
+                    statusDiv.className = 'success';
+                    userInfoDiv.style.display = 'block';
+                    userInfoDiv.innerHTML = `
+                        <strong>Thông tin tài khoản:</strong><br>
+                        ID: ${result.userId || 'Không xác định'}<br>
+                        Tên: ${result.userName || 'Không xác định'}
+                    `;
+                    reportBtn.disabled = false;
+                    browserControls.style.display = 'block';
+                } else {
+                    throw new Error(result.error || 'Đăng nhập thất bại');
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `❌ Lỗi: ${error.message}`;
+                statusDiv.className = 'error';
+                userInfoDiv.style.display = 'none';
+                reportBtn.disabled = true;
+                browserControls.style.display = 'none';
+            } finally {
+                loginBtn.disabled = false;
+            }
+        }
+
+        async function closeBrowser() {
+            try {
+                await fetch('/close-browser', { method: 'POST' });
+                document.getElementById('browserControls').style.display = 'none';
+            } catch (error) {
+                console.error('Lỗi khi đóng browser:', error);
+            }
+        }
+
+        async function startReport(cookies) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = 'Đang xử lý...';
+            statusDiv.className = '';
+
+            try {
+                const links = document.getElementById('links').value
+                    .split('\n')
+                    .map(link => link.trim())
+                    .filter(link => link);
+
+                if (!cookies || !Array.isArray(cookies)) {
+                    throw new Error('Cookies không hợp lệ');
+                }
+
+                if (links.length === 0) {
+                    throw new Error('Vui lòng nhập ít nhất một link');
+                }
+
+                const response = await fetch('/report', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ cookies, links }),
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    let statusHtml = '<h3>Kết quả:</h3><ul>';
+                    result.results.forEach(item => {
+                        statusHtml += `<li>${item.link}: ${item.status === 'success' ? '✅ Thành công' : '❌ Lỗi: ' + item.message}</li>`;
+                    });
+                    statusHtml += '</ul>';
+                    statusDiv.innerHTML = statusHtml;
+                    statusDiv.className = 'success';
+                } else {
+                    throw new Error(result.error);
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `❌ Lỗi: ${error.message}`;
+                statusDiv.className = 'error';
+            }
+        }
+
+        function convertAndStart() {
+            try {
+                const cookieString = document.getElementById('cookies').value;
+                if (!cookieString) {
+                    throw new Error('Vui lòng nhập cookie');
+                }
+                const cookies = convertCookieStringToJSON(cookieString);
+                startReport(cookies);
+            } catch (error) {
+                const statusDiv = document.getElementById('status');
+                statusDiv.innerHTML = `❌ Lỗi: ${error.message}`;
+                statusDiv.className = 'error';
+            }
+        }
+    </script>
+</body>
+</html> 

@@ -1,0 +1,14 @@
+{
+  "name": "facebook-report-automation",
+  "version": "1.0.0",
+  "description": "Facebook post report automation tool",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "puppeteer": "^24.8.2",
+    "body-parser": "^2.2.0"
+  }
+} 
